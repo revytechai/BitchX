@@ -113,12 +113,12 @@
  * Figure out how to make alloca work
  * I took this from the autoconf documentation
  */
-#if defined(__GNUC__) && !defined(HAVE_ALLOCA_H)
+#if (defined(__GNUC__) || defined(__clang__)) && (!defined(HAVE_ALLOCA_H) || defined(__FreeBSD__))
 # ifndef alloca
 #  define alloca __builtin_alloca
 # endif
 #else
-# if HAVE_ALLOCA_H
+# if defined(HAVE_ALLOCA_H) && !defined(__FreeBSD__)
 #  include <alloca.h>
 # else
 #  ifdef _AIX

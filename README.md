@@ -13,8 +13,8 @@
 [![Release](https://img.shields.io/badge/Release-2026.11--revytech-blueviolet.svg)](https://github.com/revytechai/BitchX/releases)
 [![Toolchain](https://img.shields.io/badge/Toolchain-LLVM%20%2F%20Clang-blue.svg)](https://clang.llvm.org/)
 [![C Standard](https://img.shields.io/badge/C%20Standard-C17%20%2F%20GNU17-blue.svg)](#-modern-security--toolchain-hardening)
-[![Unit Tests](https://img.shields.io/badge/Unit%20Tests-42%20Passed-brightgreen.svg)](#-red-green-tdd--comprehensive-unit-testing)
-[![Code Coverage](https://img.shields.io/badge/Coverage-96.4%25%20--%20100%25-green.svg)](#-red-green-tdd--comprehensive-unit-testing)
+[![Unit Tests](https://img.shields.io/badge/Unit%20Tests-58%20Passed-brightgreen.svg)](#-red-green-tdd--comprehensive-unit-testing)
+[![AI Subsystem](https://img.shields.io/badge/AI%20Providers-OpenCode%20%7C%20Honcho%20%7C%20Ollama-blueviolet.svg)](#-ai-subsystem-memory-stores--session-persistence)
 [![Security Scanners](https://img.shields.io/badge/Scanners-Semgrep%20%7C%20Lizard%20%7C%20Gitleaks-clean-blueviolet.svg)](#-modern-security--toolchain-hardening)
 [![License](https://img.shields.io/badge/License-BSD%20Derived-orange.svg)](https://github.com/revytechai/BitchX/blob/main/COPYRIGHT)
 
@@ -46,6 +46,15 @@
 * **42 Automated Unit Tests**: Complete unit test suite (`make -C tests check`) exercising positive and negative/bad code paths.
 * **Subsystems Covered**: Array manipulation & dynamic resizing, directory scanning & environment isolation, terminal normalization, window status flag bitmasks, and hook dispatching.
 * **High Coverage**: $>96\%$ code coverage across all audited subsystem functions.
+
+### 🤖 AI Subsystem, Memory Stores & Session Persistence
+* **Universal OpenAI-Compatible Routing**: Seamlessly connects to OpenCode / LiteLLM proxy, Ollama local daemons, OpenAI direct, Anthropic, MiniMax, or CloudBSD MCP Gateway.
+* **Dual Memory Architectures**:
+  * **Internal Store**: Unified database ORM layer backed by embedded SQLite3 (or network PostgreSQL) with auto-migrating message and epistemic memory tables.
+  * **External Honcho Store**: Direct `libcurl` HTTP dialectic client mapping IRC channels to Honcho sessions and nicknames to Honcho peers automatically with selectable presets.
+* **System 1 Autonomous Reflex**: Fast reactive reflex model (e.g. `llama3.2:1b`, `gemini-flash`, `gpt-4o-mini`) evaluating live channel chatter to autonomously decide whether the bot should chime in.
+* **Cyberpunk ANSI Dialog Wizard**: Built-in interactive ANSI form with quick-select presets, field editing, status badges, and channel bindings (`/AIPROFILE`).
+* **Userspace Session State**: Full persistence of nickname, joined channels, active servers, SSL flags, and active AI profile across restarts (`/SAVESESSION` & `/RESTORESESSION`).
 
 ### 🎨 The Classic Cyberpunk Terminal Experience
 * **Electric ANSI Art**: Full ANSI color formatting, customized nick highlighting, split-window status lines, and iconic ASCII banners.
@@ -184,6 +193,17 @@ BitchX yournick irc.libera.chat:6697
 | `/JOIN #channel` | Join an IRC channel |
 | `/WINDOW SPLIT` | Split the terminal into multiple viewports |
 | `/WINDOW NEXT` | Switch focus between windows |
+| `/AIPROFILE [LIST]` | Display cyberpunk AI profiles overview |
+| `/AIPROFILE PRESETS` | Quick-select catalog (OpenCode, Ollama, CloudBSD, OpenAI, etc.) |
+| `/AIPROFILE CREATE <name> [preset]` | Create profile pre-populated from preset without retyping endpoints |
+| `/AIPROFILE SHOW [name]` | Render cyberpunk ANSI dialog card for profile |
+| `/AIPROFILE USE <name>` | Switch active AI profile |
+| `/AIPROFILE BIND <chan> [name]` | Bind channel to specific profile |
+| `/AIPROFILE BACKUP [file]` | Export profiles configuration to JSON |
+| `/AIPROFILE RESTORE <file>` | Restore profiles from JSON backup |
+| `/AI [-say] <prompt>` | Query active AI model with Honcho / ORM memory context |
+| `/SAVESESSION [file]` | Persist nick, joined channels, servers, and AI profile |
+| `/RESTORESESSION [file]` | Restore saved IRC session and active AI profile |
 | `/NAMES -stat` | Show nicks sorted by channel status |
 | `/HELP` | Open interactive built-in manual |
 | `/QUIT [message]` | Exit BitchX |

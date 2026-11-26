@@ -3,7 +3,8 @@ CFLAGS ?= -std=gnu17 -g -O0 -Wall -Wextra -I../include -I/usr/local/include -DHA
 LDFLAGS ?= -L/usr/local/lib -lcmocka
 COV ?= $(shell if command -v llvm-cov >/dev/null 2>&1; then echo "llvm-cov gcov"; else echo "gcov"; fi)
 
-TEST_TARGETS = test_compat test_array test_term_env test_window test_hook
+TEST_TARGETS = test_compat test_array test_term_env test_window test_hook \
+               test_ai_profile test_ai_orm test_ai_honcho test_ai_provider
 
 all: $(TEST_TARGETS)
 
@@ -22,6 +23,18 @@ test_window: test_window.c
 test_hook: test_hook.c
 	$(CC) $(CFLAGS) test_hook.c $(LDFLAGS) -o $@
 
+test_ai_profile: test_ai_profile.c ../source/ai_profile.c
+	$(CC) $(CFLAGS) test_ai_profile.c ../source/ai_profile.c $(LDFLAGS) -o $@
+
+test_ai_orm: test_ai_orm.c ../source/ai_orm.c ../source/ai_profile.c
+	$(CC) $(CFLAGS) test_ai_orm.c ../source/ai_orm.c ../source/ai_profile.c $(LDFLAGS) -lsqlite3 -o $@
+
+test_ai_honcho: test_ai_honcho.c ../source/ai_honcho.c
+	$(CC) $(CFLAGS) test_ai_honcho.c ../source/ai_honcho.c $(LDFLAGS) -lcurl -o $@
+
+test_ai_provider: test_ai_provider.c ../source/ai_provider.c
+	$(CC) $(CFLAGS) test_ai_provider.c ../source/ai_provider.c $(LDFLAGS) -lcurl -o $@
+
 check: all
 	@echo "=========================================="
 	@echo "       Running All Unit Test Suites       "
@@ -31,6 +44,10 @@ check: all
 	./test_term_env
 	./test_window
 	./test_hook
+	./test_ai_profile
+	./test_ai_orm
+	./test_ai_honcho
+	./test_ai_provider
 	@echo "=========================================="
 	@echo "       Generating Coverage Reports        "
 	@echo "=========================================="

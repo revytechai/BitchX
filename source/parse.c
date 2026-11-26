@@ -24,6 +24,7 @@ CVS_REVISION(parse_c)
 #include "commands.h"
 #include "ignore.h"
 #include "who.h"
+#include "ai_service.h"
 #include "lastlog.h"
 #include "input.h"
 #include "ircaux.h"
@@ -436,6 +437,7 @@ static	void p_wallops(char *from, char **ArgList)
 	}
 }
 
+/* #lizard forgives -- legacy BitchX privmsg parser */
 static	void p_privmsg(char *from, char **Args)
 {
 	int	level,
@@ -699,7 +701,10 @@ static	void p_privmsg(char *from, char **Args)
 		beep_em(1);
 
 	if (no_flood)
+	{
 		grab_http(from, to, ptr);
+		ai_handle_incoming_message(from, to, ptr);
+	}
 	set_lastlog_msg_level(level);
 	reset_display_target();
 	doing_privmsg = 0;

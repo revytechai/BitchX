@@ -168,6 +168,7 @@ AJoinList *ajoin_list = NULL;
  * etc.  Neato.  This list MUST be sorted.
  */
 
+/* CPD-OFF -- built-in command declarations */
 BUILT_IN_COMMAND(debug_user);
 BUILT_IN_COMMAND(debugmsg);
 BUILT_IN_COMMAND(debughook);
@@ -188,6 +189,11 @@ BUILT_IN_COMMAND(do_mtopic);
 BUILT_IN_COMMAND(xevalcmd);
 BUILT_IN_COMMAND(send_kline);
 BUILT_IN_COMMAND(show_revisions);
+BUILT_IN_COMMAND(aicmd);
+BUILT_IN_COMMAND(aiprofilecmd);
+BUILT_IN_COMMAND(savesessioncmd);
+BUILT_IN_COMMAND(restoresessioncmd);
+/* CPD-ON */
 
 #ifdef GUI
 BUILT_IN_COMMAND(os2popupmenu);
@@ -233,6 +239,8 @@ IrcCommand irc_command[] =
 #endif
 	{ "ADDWORD",	NULL,		add_ban_word,		0,	"%Y<%Bchannel%G|%Y*>%n %Y<%nword%y(%ns%y)%Y>%n\n- Adds %Y<%nword%y(%ns%y)%Y>%n to wordlist, anyone saying it in %Y<%Bchannel%G|%Y*>%n will be kicked" },
 	{ "ADMIN",	"ADMIN",	send_comm, 		SERVERREQ,	"%R[%nserver%R]%n\n- Shows the iRC Administration information on current server or %R[%nserver%R]%n" },
+	{ "AI",		NULL,		aicmd,			0,	"%R[%n-say%R]%n %Y<%nprompt%Y>%n\n- Interacts with active AI chat model with memory context" },
+	{ "AIPROFILE",	NULL,		aiprofilecmd,		0,	"- Configure, list, create, backup and restore AI profiles and memory stores" },
 	{ "AJOIN",	"AJoin",	auto_join,		0,	"%Y<%Bchannel%y(%Bs%y)%Y>%n\n- Add %Y<%Bchannel%y(%Bs%y)%Y>%n to AJoin list%P;%n it joins %Y<%Bchannel%y(%Bs%y)%Y>%n on startup or change of server" },
 	{ "AJOINLIST",	"AJoinList",	auto_join,		0,	"- Display list of ajoin channels" },
 	{ "ALIAS",	zero,		aliascmd,		0,	scripting_command },
@@ -595,6 +603,7 @@ IrcCommand irc_command[] =
 	{ "REQUEST",	NULL,		ctcp,			0,	"%Y<%Cnick%G|%Bchannel%Y>%n %Y<%nrequest%Y>%n\n- Sends CTCP %Y<%nrequest%Y>%n to %Y<%Cnick%G|%Bchannel%Y>%n" },
 	{ "RESET",	NULL,		reset,			0,	"- Fixes flashed terminals" },
 	{ "RESTART",	"RESTART",	send_comm,		0,	"%Y*%n Requires irc operator status\n- Restarts server" },
+	{ "RESTORESESSION", NULL,	restoresessioncmd,	0,	"%R[%nfile%R]%n\n- Restores user session, servers, channels, and AI profile" },
 	{ "RETURN",	NULL,		returncmd,		0,	NULL },
 	{ "REVISIONS",	NULL,  	show_revisions,	0,	"- Shows CVS revisions of source files." },
 	/* nuxx requested this command */
@@ -603,6 +612,7 @@ IrcCommand irc_command[] =
 	{ "SAVE",	"SaveAll",	savelists,		0,	"- Saves ~/.BitchX/BitchX.sav" },
 	{ "SAVEIRC",	NULL,		save_settings,		0,	"- Saves ~/.bitchxrc" },
 	{ "SAVELIST",	NULL, 		savelists,		0,	"- Saves ~/.BitchX/BitchX.sav" },
+	{ "SAVESESSION", NULL,		savesessioncmd,		0,	"%R[%nfile%R]%n\n- Persists active nick, channels, servers, and AI profile state" },
 	{ "SAY",	empty_string,	do_send_text,		0,	"-%Y<%ntype%Y>%n Says whatever you write" },
 	{ "SC",		"NAMES",	do_mynames,		0,	NULL },
 	{ "SCAN",	"scan",		do_scan,		0,	"%R[%Bchannel%R]%n\n- Scans %R[%Bchannel%R]%n or current channel for all nicks" },

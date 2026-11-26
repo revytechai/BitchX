@@ -163,8 +163,13 @@
  */
 
 #if !defined(__EMX__) && !defined(WINNT)
-/* if this file has something in it, then we'll use it instead. */
-#include "../.config.h"
+#if defined(__has_include)
+# if __has_include("../.config.h")
+#  include "../.config.h"
+# endif
+#else
+# include "../.config.h"
+#endif
 #endif
 
 #if !defined(_USE_LOCAL_CONFIG)
@@ -271,7 +276,7 @@
 /*
  * Normally BitchX uses only the IBMPC (cp437) charset.
  * Define LATIN1, if you want to see the standard Latin1 characters
- * (i.e. Ä Ö Ü ä ö ü ß <-> "A "O "U "a "o "u \qs ).
+ * (i.e. Ã„ Ã– Ãœ Ã¤ Ã¶ Ã¼ ÃŸ <-> "A "O "U "a "o "u \qs ).
  *
  * You will still be able to see ansi graphics, but there will be some
  * smaller problems (i.e. after a PageUp).
