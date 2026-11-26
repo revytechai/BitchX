@@ -6,7 +6,10 @@ COV ?= $(shell if command -v llvm-cov >/dev/null 2>&1; then echo "llvm-cov gcov"
 TEST_TARGETS = test_compat test_array test_term_env test_window test_hook \
                test_ai_profile test_ai_orm test_ai_honcho test_ai_provider
 
-all: $(TEST_TARGETS)
+all: ../include/defs.h $(TEST_TARGETS)
+
+../include/defs.h:
+	@if [ ! -f ../include/defs.h ]; then cp ../include/defs.h.in ../include/defs.h; fi
 
 test_compat: test_compat.c ../source/compat.c
 	$(CC) $(CFLAGS) -DTEST_COMPAT test_compat.c ../source/compat.c $(LDFLAGS) -o $@

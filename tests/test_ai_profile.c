@@ -62,9 +62,17 @@ static void test_preset_catalog(void **state) {
     int count = ai_profile_get_presets_count();
     assert_true(count >= 5);
 
+    /* Preset 0: OpenCode */
     const AIProfilePreset *p0 = ai_profile_get_preset(0);
     assert_non_null(p0);
     assert_string_equal(p0->preset_name, "opencode");
+
+    /* Preset 1: OpenRouter (replaces previous cloudbsd anchor) */
+    const AIProfilePreset *p1 = ai_profile_get_preset(1);
+    assert_non_null(p1);
+    assert_string_equal(p1->preset_name, "openrouter");
+    assert_null(strstr(p1->api_endpoint, "cloudbsd"));
+    assert_null(strstr(p1->honcho_endpoint, "cloudbsd"));
 
     AIProfile prof;
     int rc = ai_profile_apply_preset(&prof, 0, "my_opencode");
@@ -77,6 +85,26 @@ static void test_preset_catalog(void **state) {
     /* Negative: invalid preset index */
     assert_int_equal(ai_profile_apply_preset(&prof, -1, "bad"), -1);
     assert_int_equal(ai_profile_apply_preset(&prof, 999, "bad"), -1);
+}
+
+static void test_presets_dynamic_save_load(void **state) {
+    (void)state;
+    const char *tmp_presets = "/tmp/bx_test_presets.json";
+    unlink(tmp_presets);
+
+    int rc = ai_presets_save_json(tmp_presets);
+    assert_int_equal(rc, 0);
+
+    /* Verify loading presets from dynamic JSON */
+    rc = ai_presets_load_json(tmp_presets);
+    assert_int_equal(rc, 0);
+    assert_true(ai_profile_get_presets_count() >= 5);
+
+    const AIProfilePreset *p = ai_profile_get_preset(1);
+    assert_non_null(p);
+    assert_string_equal(p->preset_name, "openrouter");
+
+    unlink(tmp_presets);
 }
 
 static void test_profile_channel_binding(void **state) {
@@ -164,7 +192,7 @@ static void test_session_state_save_load(void **state) {
     ai_session_state_init(&sess);
     snprintf(sess.nickname, sizeof(sess.nickname), "cyberpunk");
     snprintf(sess.realname, sizeof(sess.realname), "BitchX User");
-    snprintf(sess.default_server, sizeof(sess.default_server), "irc.cloudbsd.org");
+    snprintf(sess.default_server, sizeof(sess.default_server), "irc.libera.chat");
     sess.default_port = 6697;
     sess.use_ssl = 1;
     snprintf(sess.active_ai_profile, sizeof(sess.active_ai_profile), "opencode_prod");
@@ -179,7 +207,7 @@ static void test_session_state_save_load(void **state) {
     rc = ai_session_load(&loaded, tmp_session);
     assert_int_equal(rc, 0);
     assert_string_equal(loaded.nickname, "cyberpunk");
-    assert_string_equal(loaded.default_server, "irc.cloudbsd.org");
+    assert_string_equal(loaded.default_server, "irc.libera.chat");
     assert_int_equal(loaded.default_port, 6697);
     assert_int_equal(loaded.use_ssl, 1);
     assert_string_equal(loaded.active_ai_profile, "opencode_prod");
@@ -195,6 +223,7 @@ int main(void) {
         cmocka_unit_test(test_profile_init_and_empty),
         cmocka_unit_test(test_profile_add_and_get),
         cmocka_unit_test(test_preset_catalog),
+        cmocka_unit_test(test_presets_dynamic_save_load),
         cmocka_unit_test(test_profile_channel_binding),
         cmocka_unit_test(test_profile_save_load_backup_restore),
         cmocka_unit_test(test_session_state_save_load),

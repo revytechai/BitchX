@@ -1,5 +1,6 @@
 /*
  * AI Profile & Session Management Implementation for BitchX (REVYTECH Edition)
+ * Includes dynamic user preset management loaded from ~/.BitchX/ai_presets.json.
  */
 
 #include "ai_profile.h"
@@ -10,12 +11,15 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
-/* CPD-OFF -- preset catalog configuration structures */
-/* Built-in Preset Catalog */
-static const AIProfilePreset PRESET_CATALOG[] = {
+/* CPD-OFF -- dynamic preset catalog defaults */
+static AIProfilePreset g_presets[AI_MAX_PRESETS];
+static int g_preset_count = 0;
+static int g_presets_initialized = 0;
+
+static const AIProfilePreset DEFAULT_BUILTIN_PRESETS[] = {
     {
         .preset_name = "opencode",
-        .description = "OpenCode / LiteLLM Proxy (OpenAI, Anthropic, Gemini, Ollama)",
+        .description = "OpenCode / LiteLLM Multi-Model Proxy",
         .chat_model = "gpt-4o",
         .api_endpoint = "http://127.0.0.1:4000/v1",
         .api_key_env = "OPENCODE_API_KEY",
@@ -23,19 +27,19 @@ static const AIProfilePreset PRESET_CATALOG[] = {
         .memory_model = "gpt-4o-mini",
         .system1_model = "gpt-4o-mini",
         .honcho_endpoint = "http://127.0.0.1:8000",
-        .honcho_workspace = "bitchx"
+        .honcho_workspace = "default"
     },
     {
-        .preset_name = "cloudbsd",
-        .description = "CloudBSD MCP Gateway (Gemini 2.5 Pro + Honcho Memory)",
-        .chat_model = "gemini-2.5-pro",
-        .api_endpoint = "https://mcp-gateway.cloudbsd.org/v1",
-        .api_key_env = "CLOUDBD_API_KEY",
-        .memory_type = AI_MEMORY_EXTERNAL_HONCHO,
-        .memory_model = "gemini-2.5-flash",
-        .system1_model = "gemini-2.5-flash",
-        .honcho_endpoint = "https://mcp-gateway.cloudbsd.org/mcp",
-        .honcho_workspace = "revytech"
+        .preset_name = "openrouter",
+        .description = "OpenRouter Universal Multi-Provider API Gateway",
+        .chat_model = "anthropic/claude-3.5-sonnet",
+        .api_endpoint = "https://openrouter.ai/api/v1",
+        .api_key_env = "OPENROUTER_API_KEY",
+        .memory_type = AI_MEMORY_INTERNAL,
+        .memory_model = "meta-llama/llama-3.2-3b-instruct",
+        .system1_model = "meta-llama/llama-3.2-3b-instruct",
+        .honcho_endpoint = "",
+        .honcho_workspace = ""
     },
     {
         .preset_name = "ollama",
@@ -74,34 +78,261 @@ static const AIProfilePreset PRESET_CATALOG[] = {
         .honcho_workspace = ""
     },
     {
-        .preset_name = "minimax",
-        .description = "MiniMax API (MiniMax-Text-01 + Internal SQLite)",
-        .chat_model = "MiniMax-Text-01",
-        .api_endpoint = "https://api.minimax.chat/v1",
-        .api_key_env = "MINIMAX_API_KEY",
+        .preset_name = "vllm-local",
+        .description = "Local vLLM High-Performance Inference Server",
+        .chat_model = "meta-llama/Llama-3.2-3B-Instruct",
+        .api_endpoint = "http://127.0.0.1:8000/v1",
+        .api_key_env = "",
         .memory_type = AI_MEMORY_INTERNAL,
-        .memory_model = "MiniMax-Text-01",
-        .system1_model = "MiniMax-Text-01",
+        .memory_model = "meta-llama/Llama-3.2-1B-Instruct",
+        .system1_model = "meta-llama/Llama-3.2-1B-Instruct",
         .honcho_endpoint = "",
         .honcho_workspace = ""
+    },
+    {
+        .preset_name = "honcho-agent",
+        .description = "Dedicated Dialectic Agent with Honcho Memory Store",
+        .chat_model = "gpt-4o",
+        .api_endpoint = "http://127.0.0.1:4000/v1",
+        .api_key_env = "OPENCODE_API_KEY",
+        .memory_type = AI_MEMORY_EXTERNAL_HONCHO,
+        .memory_model = "gpt-4o-mini",
+        .system1_model = "gpt-4o-mini",
+        .honcho_endpoint = "http://127.0.0.1:8000",
+        .honcho_workspace = "bitchx"
     }
 };
+
+static const int DEFAULT_BUILTIN_COUNT = sizeof(DEFAULT_BUILTIN_PRESETS) / sizeof(DEFAULT_BUILTIN_PRESETS[0]);
 /* CPD-ON */
 
-static const int PRESET_CATALOG_COUNT = sizeof(PRESET_CATALOG) / sizeof(PRESET_CATALOG[0]);
+char *ai_expand_path(const char *path, char *buf, size_t buflen) {
+    if (!path || !buf || buflen == 0) return NULL;
+    if (path[0] == '~' && (path[1] == '/' || path[1] == '\0')) {
+        const char *home = getenv("HOME");
+        if (!home) home = ".";
+        snprintf(buf, buflen, "%s%s", home, path + 1);
+    } else {
+        snprintf(buf, buflen, "%s", path);
+    }
+    return buf;
+}
+
+static void ensure_parent_dir(const char *filepath) {
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s", filepath);
+    char *p = strrchr(dir, '/');
+    if (p) {
+        *p = '\0';
+        mkdir(dir, 0700);
+    }
+}
+
+/* --- JSON Parsing Helpers --- */
+static const char *skip_ws(const char *s) {
+    while (*s && isspace((unsigned char)*s)) s++;
+    return s;
+}
+
+static int extract_json_string(const char *json, const char *key, char *dest, size_t maxlen) {
+    if (!json || !key || !dest || maxlen == 0) return -1;
+    char pattern[128];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (!p) return -1;
+    p += strlen(pattern);
+    p = skip_ws(p);
+    if (*p != ':') return -1;
+    p = skip_ws(p + 1);
+    if (*p != '\"') return -1;
+    p++;
+    size_t i = 0;
+    while (*p && *p != '\"' && i < maxlen - 1) {
+        if (*p == '\\' && *(p + 1)) p++;
+        dest[i++] = *p++;
+    }
+    dest[i] = '\0';
+    return 0;
+}
+
+static int extract_json_int(const char *json, const char *key, int *dest) {
+    if (!json || !key || !dest) return -1;
+    char pattern[128];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (!p) return -1;
+    p += strlen(pattern);
+    p = skip_ws(p);
+    if (*p != ':') return -1;
+    p = skip_ws(p + 1);
+    *dest = atoi(p);
+    return 0;
+}
+
+/* Dynamic Preset Management */
+int ai_presets_init(void) {
+    if (g_presets_initialized) return 0;
+
+    char path[512];
+    ai_expand_path(AI_DEFAULT_PRESETS_PATH, path, sizeof(path));
+
+    if (access(path, R_OK) == 0) {
+        if (ai_presets_load_json(path) == 0 && g_preset_count > 0) {
+            g_presets_initialized = 1;
+            return 0;
+        }
+    }
+
+    /* Seed defaults */
+    g_preset_count = 0;
+    for (int i = 0; i < DEFAULT_BUILTIN_COUNT && i < AI_MAX_PRESETS; i++) {
+        memcpy(&g_presets[i], &DEFAULT_BUILTIN_PRESETS[i], sizeof(AIProfilePreset));
+        g_preset_count++;
+    }
+
+    ai_presets_save_json(path);
+    g_presets_initialized = 1;
+    return 0;
+}
+
+int ai_presets_save_json(const char *filepath) {
+    if (!filepath) return -1;
+    char real_path[512];
+    ai_expand_path(filepath, real_path, sizeof(real_path));
+    ensure_parent_dir(real_path);
+
+    FILE *f = fopen(real_path, "w");
+    if (!f) return -1;
+
+    fprintf(f, "{\n");
+    fprintf(f, "  \"version\": 1,\n");
+    fprintf(f, "  \"presets\": [\n");
+
+    for (int i = 0; i < g_preset_count; i++) {
+        const AIProfilePreset *p = &g_presets[i];
+        fprintf(f, "    {\n");
+        fprintf(f, "      \"preset_name\": \"%s\",\n", p->preset_name);
+        fprintf(f, "      \"description\": \"%s\",\n", p->description);
+        fprintf(f, "      \"chat_model\": \"%s\",\n", p->chat_model);
+        fprintf(f, "      \"api_endpoint\": \"%s\",\n", p->api_endpoint);
+        fprintf(f, "      \"api_key_env\": \"%s\",\n", p->api_key_env);
+        fprintf(f, "      \"memory_type\": %d,\n", (int)p->memory_type);
+        fprintf(f, "      \"memory_model\": \"%s\",\n", p->memory_model);
+        fprintf(f, "      \"system1_model\": \"%s\",\n", p->system1_model);
+        fprintf(f, "      \"honcho_endpoint\": \"%s\",\n", p->honcho_endpoint);
+        fprintf(f, "      \"honcho_workspace\": \"%s\"\n", p->honcho_workspace);
+        fprintf(f, "    }%s\n", (i < g_preset_count - 1) ? "," : "");
+    }
+
+    fprintf(f, "  ]\n");
+    fprintf(f, "}\n");
+
+    fclose(f);
+    return 0;
+}
+
+/* #lizard forgives -- JSON parser for dynamic presets */
+int ai_presets_load_json(const char *filepath) {
+    if (!filepath) return -1;
+    char real_path[512];
+    ai_expand_path(filepath, real_path, sizeof(real_path));
+
+    FILE *f = fopen(real_path, "r");
+    if (!f) return -1;
+
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (len <= 0 || len > 1024 * 1024) {
+        fclose(f);
+        return -2;
+    }
+
+    char *buf = (char *)malloc(len + 1);
+    if (!buf) {
+        fclose(f);
+        return -3;
+    }
+    size_t rb = fread(buf, 1, len, f);
+    buf[rb] = '\0';
+    fclose(f);
+
+    const char *p = strstr(buf, "\"presets\"");
+    if (!p) {
+        free(buf);
+        return -4;
+    }
+    p = strchr(p, '[');
+    if (!p) {
+        free(buf);
+        return -4;
+    }
+
+    g_preset_count = 0;
+    while ((p = strchr(p, '{')) != NULL && g_preset_count < AI_MAX_PRESETS) {
+        const char *end_obj = strchr(p, '}');
+        if (!end_obj) break;
+
+        size_t block_len = end_obj - p + 1;
+        char *block = (char *)malloc(block_len + 1);
+        if (!block) break;
+        memcpy(block, p, block_len);
+        block[block_len] = '\0';
+
+        AIProfilePreset pres;
+        memset(&pres, 0, sizeof(AIProfilePreset));
+
+        extract_json_string(block, "preset_name", pres.preset_name, sizeof(pres.preset_name));
+        extract_json_string(block, "description", pres.description, sizeof(pres.description));
+        extract_json_string(block, "chat_model", pres.chat_model, sizeof(pres.chat_model));
+        extract_json_string(block, "api_endpoint", pres.api_endpoint, sizeof(pres.api_endpoint));
+        extract_json_string(block, "api_key_env", pres.api_key_env, sizeof(pres.api_key_env));
+        extract_json_string(block, "memory_model", pres.memory_model, sizeof(pres.memory_model));
+        extract_json_string(block, "system1_model", pres.system1_model, sizeof(pres.system1_model));
+        extract_json_string(block, "honcho_endpoint", pres.honcho_endpoint, sizeof(pres.honcho_endpoint));
+        extract_json_string(block, "honcho_workspace", pres.honcho_workspace, sizeof(pres.honcho_workspace));
+
+        int mtype = 0;
+        if (extract_json_int(block, "memory_type", &mtype) == 0) {
+            pres.memory_type = (AIMemoryType)mtype;
+        }
+
+        if (pres.preset_name[0]) {
+            memcpy(&g_presets[g_preset_count], &pres, sizeof(AIProfilePreset));
+            g_preset_count++;
+        }
+
+        free(block);
+        p = end_obj + 1;
+    }
+
+    free(buf);
+    return 0;
+}
 
 int ai_profile_get_presets_count(void) {
-    return PRESET_CATALOG_COUNT;
+    if (!g_presets_initialized) {
+        ai_presets_init();
+    }
+    return g_preset_count;
 }
 
 const AIProfilePreset *ai_profile_get_preset(int index) {
-    if (index < 0 || index >= PRESET_CATALOG_COUNT) return NULL;
-    return &PRESET_CATALOG[index];
+    if (!g_presets_initialized) {
+        ai_presets_init();
+    }
+    if (index < 0 || index >= g_preset_count) return NULL;
+    return &g_presets[index];
 }
 
 int ai_profile_apply_preset(AIProfile *profile, int preset_index, const char *profile_name) {
-    if (!profile || preset_index < 0 || preset_index >= PRESET_CATALOG_COUNT) return -1;
-    const AIProfilePreset *p = &PRESET_CATALOG[preset_index];
+    if (!profile) return -1;
+    if (!g_presets_initialized) {
+        ai_presets_init();
+    }
+    if (preset_index < 0 || preset_index >= g_preset_count) return -1;
+    const AIProfilePreset *p = &g_presets[preset_index];
 
     memset(profile, 0, sizeof(AIProfile));
     if (profile_name && *profile_name) {
@@ -137,28 +368,6 @@ int ai_profile_apply_preset(AIProfile *profile, int preset_index, const char *pr
     profile->created_at = time(NULL);
     profile->updated_at = profile->created_at;
     return 0;
-}
-
-char *ai_expand_path(const char *path, char *buf, size_t buflen) {
-    if (!path || !buf || buflen == 0) return NULL;
-    if (path[0] == '~' && (path[1] == '/' || path[1] == '\0')) {
-        const char *home = getenv("HOME");
-        if (!home) home = ".";
-        snprintf(buf, buflen, "%s%s", home, path + 1);
-    } else {
-        snprintf(buf, buflen, "%s", path);
-    }
-    return buf;
-}
-
-static void ensure_parent_dir(const char *filepath) {
-    char dir[512];
-    snprintf(dir, sizeof(dir), "%s", filepath);
-    char *p = strrchr(dir, '/');
-    if (p) {
-        *p = '\0';
-        mkdir(dir, 0700);
-    }
 }
 
 void ai_profile_mgr_init(AIProfileManager *mgr) {
@@ -307,47 +516,6 @@ int ai_profile_remove_channel(AIProfile *profile, const char *channel) {
         }
     }
     return -2;
-}
-
-/* --- JSON Parsing Helpers --- */
-static const char *skip_ws(const char *s) {
-    while (*s && isspace((unsigned char)*s)) s++;
-    return s;
-}
-
-static int extract_json_string(const char *json, const char *key, char *dest, size_t maxlen) {
-    if (!json || !key || !dest || maxlen == 0) return -1;
-    char pattern[128];
-    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
-    const char *p = strstr(json, pattern);
-    if (!p) return -1;
-    p += strlen(pattern);
-    p = skip_ws(p);
-    if (*p != ':') return -1;
-    p = skip_ws(p + 1);
-    if (*p != '\"') return -1;
-    p++;
-    size_t i = 0;
-    while (*p && *p != '\"' && i < maxlen - 1) {
-        if (*p == '\\' && *(p + 1)) p++;
-        dest[i++] = *p++;
-    }
-    dest[i] = '\0';
-    return 0;
-}
-
-static int extract_json_int(const char *json, const char *key, int *dest) {
-    if (!json || !key || !dest) return -1;
-    char pattern[128];
-    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
-    const char *p = strstr(json, pattern);
-    if (!p) return -1;
-    p += strlen(pattern);
-    p = skip_ws(p);
-    if (*p != ':') return -1;
-    p = skip_ws(p + 1);
-    *dest = atoi(p);
-    return 0;
 }
 
 /* CPD-OFF -- JSON serialization and deserialization routines */
@@ -629,26 +797,26 @@ int ai_session_load(AISessionState *session, const char *filepath) {
     char path[512];
     ai_expand_path(filepath, path, sizeof(path));
 
-    FILE *f = fopen(path, "r");
-    if (!f) return -1;
+    FILE *fp = fopen(path, "r");
+    if (!fp) return -1;
 
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
 
     if (len <= 0 || len > 1024 * 1024) {
-        fclose(f);
+        fclose(fp);
         return -2;
     }
 
     char *buf = (char *)malloc(len + 1);
     if (!buf) {
-        fclose(f);
+        fclose(fp);
         return -3;
     }
-    size_t rb = fread(buf, 1, len, f);
+    size_t rb = fread(buf, 1, len, fp);
     buf[rb] = '\0';
-    fclose(f);
+    fclose(fp);
 
     ai_session_state_init(session);
     extract_json_string(buf, "nickname", session->nickname, sizeof(session->nickname));

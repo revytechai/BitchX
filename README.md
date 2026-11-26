@@ -48,7 +48,7 @@
 * **High Coverage**: $>96\%$ code coverage across all audited subsystem functions.
 
 ### 🤖 AI Subsystem, Memory Stores & Session Persistence
-* **Universal OpenAI-Compatible Routing**: Seamlessly connects to OpenCode / LiteLLM proxy, Ollama local daemons, OpenAI direct, Anthropic, MiniMax, or CloudBSD MCP Gateway.
+* **Universal OpenAI-Compatible Routing**: Seamlessly connects to OpenCode / LiteLLM proxy, OpenRouter, Ollama local daemons, OpenAI direct, Anthropic, MiniMax, or any custom API endpoint.
 * **Dual Memory Architectures**:
   * **Internal Store**: Unified database ORM layer backed by embedded SQLite3 (or network PostgreSQL) with auto-migrating message and epistemic memory tables.
   * **External Honcho Store**: Direct `libcurl` HTTP dialectic client mapping IRC channels to Honcho sessions and nicknames to Honcho peers automatically with selectable presets.
@@ -194,7 +194,7 @@ BitchX yournick irc.libera.chat:6697
 | `/WINDOW SPLIT` | Split the terminal into multiple viewports |
 | `/WINDOW NEXT` | Switch focus between windows |
 | `/AIPROFILE [LIST]` | Display cyberpunk AI profiles overview |
-| `/AIPROFILE PRESETS` | Quick-select catalog (OpenCode, Ollama, CloudBSD, OpenAI, etc.) |
+| `/AIPROFILE PRESETS` | Quick-select catalog (OpenCode, OpenRouter, Ollama, OpenAI, Anthropic, vLLM, etc.) |
 | `/AIPROFILE CREATE <name> [preset]` | Create profile pre-populated from preset without retyping endpoints |
 | `/AIPROFILE SHOW [name]` | Render cyberpunk ANSI dialog card for profile |
 | `/AIPROFILE USE <name>` | Switch active AI profile |

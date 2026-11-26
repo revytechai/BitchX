@@ -1,6 +1,6 @@
 /*
  * Honcho HTTP Client for BitchX AI Subsystem
- * Connects directly to Honcho memory stores / CloudBSD MCP Gateway using libcurl.
+ * Connects directly to Honcho memory stores / dialectic endpoints using libcurl.
  * Supports auto-mapping of IRC channels to Honcho sessions and nicks to Honcho peers.
  */
 

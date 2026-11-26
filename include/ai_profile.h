@@ -1,7 +1,7 @@
 /*
  * AI Profile & Session Management for BitchX (REVYTECH Edition)
  * Supports multi-provider routing, internal ORM store, external Honcho memory,
- * and complete userspace session persistence.
+ * dynamic user presets, and complete userspace session persistence.
  */
 
 #ifndef _AI_PROFILE_H_
@@ -17,11 +17,13 @@
 #define AI_MAX_CHANNELS        32
 #define AI_MAX_CHANNEL_LEN     64
 #define AI_MAX_PROFILES        32
+#define AI_MAX_PRESETS         32
 #define AI_MAX_PROMPT_LEN      1024
 
-#define AI_DEFAULT_CONFIG_PATH  "~/.BitchX/ai_profiles.json"
-#define AI_DEFAULT_SESSION_PATH "~/.BitchX/session.json"
-#define AI_DEFAULT_SQLITE_PATH  "~/.BitchX/ai_memory.db"
+#define AI_DEFAULT_CONFIG_PATH   "~/.BitchX/ai_profiles.json"
+#define AI_DEFAULT_PRESETS_PATH  "~/.BitchX/ai_presets.json"
+#define AI_DEFAULT_SESSION_PATH  "~/.BitchX/session.json"
+#define AI_DEFAULT_SQLITE_PATH   "~/.BitchX/ai_memory.db"
 
 /* Interaction Trigger Modes (bitmask) */
 #define AI_TRIGGER_COMMAND     (1 << 0) /* Respond to /AI and /ASK commands */
@@ -86,18 +88,18 @@ typedef struct {
     time_t updated_at;
 } AIProfile;
 
-/* Profile Preset Definition */
+/* Dynamic Profile Preset Definition (Loaded from ~/.BitchX/ai_presets.json) */
 typedef struct {
-    const char *preset_name;
-    const char *description;
-    const char *chat_model;
-    const char *api_endpoint;
-    const char *api_key_env;
+    char preset_name[AI_MAX_NAME_LEN];
+    char description[128];
+    char chat_model[AI_MAX_MODEL_LEN];
+    char api_endpoint[AI_MAX_ENDPOINT_LEN];
+    char api_key_env[AI_MAX_KEY_ENV_LEN];
     AIMemoryType memory_type;
-    const char *memory_model;
-    const char *system1_model;
-    const char *honcho_endpoint;
-    const char *honcho_workspace;
+    char memory_model[AI_MAX_MODEL_LEN];
+    char system1_model[AI_MAX_MODEL_LEN];
+    char honcho_endpoint[AI_MAX_ENDPOINT_LEN];
+    char honcho_workspace[AI_MAX_NAME_LEN];
 } AIProfilePreset;
 
 /* Profiles Container */
@@ -123,7 +125,10 @@ typedef struct {
     time_t saved_at;
 } AISessionState;
 
-/* --- Preset Catalog API --- */
+/* --- Dynamic Preset Catalog API --- */
+int                     ai_presets_init(void);
+int                     ai_presets_load_json(const char *filepath);
+int                     ai_presets_save_json(const char *filepath);
 int                     ai_profile_get_presets_count(void);
 const AIProfilePreset  *ai_profile_get_preset(int index);
 int                     ai_profile_apply_preset(AIProfile *profile, int preset_index, const char *profile_name);
